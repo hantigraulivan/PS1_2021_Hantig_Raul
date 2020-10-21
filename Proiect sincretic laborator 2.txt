@@ -1,0 +1,115 @@
+ #include <LiquidCrystal.h>
+    const int rs = 12, en = 11 , d4 = 5, d5 = 4, d6 = 3, d7 = 2;
+    LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
+    unsigned int ore, minute;
+    unsigned int secunde;
+    float temperatura = 0, voltaj_tmp = 0;
+    
+    void adc_init()//initializare convertor analog numeric
+    {
+      ADCSRA |= ((1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0));
+      ADMUX |= (1 << REFS0);
+      ADCSRA |= (1 << ADEN);
+      ADCSRA |= (1 << ADSC);
+    }
+    
+    uint16_t read_adc(uint8_t a)//citire convertor analog numeric
+    {
+      ADMUX &= ((1 << 7) | (1 << 6) | (1 << 5) | (1 << 4));
+      ADMUX |= a;
+      ADCSRA |= (1 << ADSC);
+      while (ADCSRA & (1 << ADSC));
+      return ADCW;
+    }
+    
+    void citire_temperatura()//functie care citeste temperatura senzorului LM36
+    {
+      int reading;
+      reading = read_adc(0);
+      voltaj_tmp = reading * 5 ;
+      voltaj_tmp /= 1024;
+      voltaj_tmp = voltaj_tmp * 1000;
+      temperatura = voltaj_tmp / 10;
+      temperatura = temperatura - 50;
+    }
+    
+    void afisare_temperartura()//functie care afiseaza temperatura pe LCD
+    {
+      lcd.setCursor(0, 0);
+      lcd.print("Temp=");
+      lcd.setCursor(5, 0);
+      lcd.print(temperatura, 1);
+      lcd.print("'C "); 
+    }
+    
+    void formare_cheas()//functie care transforma secundele in ore si minute
+    {
+      minute += secunde / 60;
+      secunde = secunde % 60;
+      ore += minute / 60;
+      minute = minute % 60;
+      ore = ore % 24;
+    }
+    
+    void afisare_ceas()//functie care afiseaza ceasul pe LCD
+    {
+      lcd.setCursor(0 , 1);
+      lcd.print("ORA:");
+      if (ore < 10)
+      {
+        lcd.setCursor(4, 1);
+        lcd.print("0");
+      }
+      lcd.print(ore);
+      lcd.print(":");
+      if (minute < 10)
+      {
+        lcd.setCursor(7 , 1);
+        lcd.print("0");
+      }
+      lcd.print(minute);
+      lcd.print(":");
+      if (secunde < 10)
+      {
+        lcd.setCursor(10 , 1);
+        lcd.print("0");
+      }
+      lcd.print(secunde);
+    }
+    
+    void setup() {
+      lcd.begin(16, 2);
+      adc_init();
+    }
+    
+    void loop()
+    {
+      cli();
+      TCCR1A = 0;
+      TCCR1B = 0;
+      TCCR1C = 0;
+      //setare mod de operare
+      TCCR1B |= (1 << WGM12);
+      //setam valoare de intreerupere pentru egalitate
+      OCR1A = 62500;
+      //setare prescaler
+      TCCR1B &= ~((1 << CS11) | (1 << CS10));
+      TCCR1B |= (1 << CS12);
+      //setam intrerupere de egalitate la comparare
+      TIMSK1 = (1 << OCIE1A);
+      secunde = 30000;
+      while (1)
+      {
+        sei();
+      }
+    }
+    
+    ISR(TIMER1_COMPA_vect)
+    {
+      secunde++;
+      lcd.clear();
+      formare_cheas();
+      afisare_ceas();
+      citire_temperatura();
+      afisare_temperartura();
+    }
